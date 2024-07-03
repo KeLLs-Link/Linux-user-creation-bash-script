@@ -113,62 +113,74 @@ and paste the bash script below.
 #!/bin/bash
 
 # Paths for logging and password storage
-LOG_FILE="/var/log/user_management.log"
+LOGFILE="/var/log/user_management.log"
 PASSWORD_FILE="/var/secure/user_passwords.csv"
 
-# Ensure log and password directories exist
-sudo mkdir -p /var/log /var/secure
-sudo touch "$LOG_FILE" "$PASSWORD_FILE"
-sudo chmod 600 "$PASSWORD_FILE"
+# Check if the input file is provided as expected
+if [ -z "$1" ]; then
+  echo "Error: No file was provided"
+  echo "Usage: $0 <name-of-text-file>"
+  exit 1
+fi
 
-# Function to generate random password
-generate_password() {
-  tr -dc 'A-Za-z0-9!@#$%&*' < /dev/urandom | head -c 16
+# Ensure log and password directories exist
+mkdir -p /var/secure
+touch $LOGFILE $PASSWORD_FILE
+chmod 600 $PASSWORD_FILE
+
+generate_random_password() {
+    local length=${1:-10} # Default length is 10 if no argument is provided
+    tr -dc 'A-Za-z0-9!?%+=' < /dev/urandom | head -c $length
 }
 
-# Read user list from file
-while IFS=";" read -r username groups; do
-  username=$(echo "$username" | xargs) # Trim whitespace
-  groups=$(echo "$groups" | xargs) # Trim whitespace
+log_message() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> $LOGFILE
+}
 
-  # Create user group with the same name as the username
-  if ! getent group "$username" > /dev/null; then
-    sudo groupadd "$username"
-    echo "$(date): Group $username created" | sudo tee -a "$LOG_FILE"
+# Function to create a user
+create_user() {
+  local username=$1
+  local groups=$2
+
+  if getent passwd "$username" > /dev/null; then
+    log_message "User $username already exists"
   else
-    echo "$(date): Group $username already exists" | sudo tee -a "$LOG_FILE"
+    useradd -m $username
+    log_message "Created user $username"
   fi
 
-  # Create user if it doesn't exist
-  if ! id -u "$username" > /dev/null 2>&1; then
-    sudo useradd -m -g "$username" -G "$groups" "$username"
-    password=$(generate_password)
-    echo "$username:$password" | sudo chpasswd
-    echo "$(date): User $username created with groups $groups" | sudo tee -a "$LOG_FILE"
-    echo "$username,$password" | sudo tee -a "$PASSWORD_FILE"
-    sudo chown root:root "$PASSWORD_FILE"
-  else
-    echo "$(date): User $username already exists" | sudo tee -a "$LOG_FILE"
-  fi
+  # Add user to specified groupsgroup
+  groups_array=($(echo $groups | tr "," "\n"))
 
-  # Assign user to additional groups
-  IFS=',' read -ra GROUP_ARRAY <<< "$groups"
-  for group in "${GROUP_ARRAY[@]}"; do
-    if ! getent group "$group" > /dev/null; then
-      sudo groupadd "$group"
-      echo "$(date): Group $group created" | sudo tee -a "$LOG_FILE"
+  for group in "${groups_array[@]}"; do
+    if ! getent group "$group" >/dev/null; then
+      groupadd "$group"
+      log_message "Created group $group"   
     fi
-    sudo usermod -aG "$group" "$username"
-    echo "$(date): User $username added to group $group" | sudo tee -a "$LOG_FILE"
+    usermod -aG "$group" "$username"
+    log_message "Added user $username to group $group"
   done
 
-  # Set appropriate permissions for home directory
-  sudo chmod 700 "/home/$username"
-  sudo chown "$username:$username" "/home/$username"
+  # Set up home directory permissions
+  chmod 700 /home/$username
+  chown $username:$username /home/$username
+  log_message "Set up home directory for user $username" 
 
+  # Generate a random password
+  password=$(generate_random_password 12) 
+  echo "$username:$password" | chpasswd
+  echo "$username,$password" >> $PASSWORD_FILE
+  log_message "Set password for user $username"
+}
+
+# Read the input file and create users
+while IFS=';' read -r username groups; do
+  create_user "$username" "$groups"
+  echo $username
 done < "$1"
 
-echo "User creation process completed."
+log_message "User creation process completed."
+
 
 ```
 ![image](./Screenshots/nanouserscript.png)
@@ -224,5 +236,4 @@ getent group www-data
 ```
 ![image](./Screenshots/output.png)
 
-Visit the [HNG Internship website](https://hng.tech/internship) to learn more about the HNG Internship Program.
-
+Visit the [HNG Internship website](https://hng.tech/internship) to learn more about the HNG Internship Programe
