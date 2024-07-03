@@ -214,13 +214,15 @@ sudo cat /var/secure/user_passwords.csv
 ```
 ![image](./Screenshots/pswrdfile.png)
 
-- Check user and group creation:
+- Verify that groups were created and users were added to the groups using the `get entries` command:
 
 ```
-getent passwd light
 getent group light
 getent group sudo
+getent group dev
+getent group www-data
 ```
-
+![image](./Screenshots/output.png)
 
 Visit the [HNG Internship website](https://hng.tech/internship) to learn more about the HNG Internship Program.
+

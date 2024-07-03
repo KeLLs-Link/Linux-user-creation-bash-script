@@ -5,21 +5,24 @@ LOG_FILE="/var/log/user_management.log"
 PASSWORD_FILE="/var/secure/user_passwords.csv"
 
 # Ensure log and password directories exist
-sudo mkdir -p /var/log /var/secure
-sudo touch "$LOG_FILE" "$PASSWORD_FILE"
+sudo mkdir -p /var/log
+sudo mkdir -p /var/secure
+sudo touch "$LOG_FILE"
+sudo touch "$PASSWORD_FILE"
 sudo chmod 600 "$PASSWORD_FILE"
 
 # Function to generate random password
 generate_password() {
-  tr -dc 'A-Za-z0-9!@#$%&*' < /dev/urandom | head -c 16
+  < /dev/urandom tr -dc 'A-Za-z0-9!@#$%&*' | head -c 16
 }
 
 # Read user list from file
 while IFS=";" read -r username groups; do
-  username=$(echo "$username" | xargs) # Trim whitespace
-  groups=$(echo "$groups" | xargs) # Trim whitespace
+  # Remove whitespace
+  username=$(echo "$username" | xargs)
+  groups=$(echo "$groups" | xargs)
 
-  # Create user group with the same name as the username
+  # Create personal group with the same name as the username
   if ! getent group "$username" > /dev/null; then
     sudo groupadd "$username"
     echo "$(date): Group $username created" | sudo tee -a "$LOG_FILE"
@@ -40,8 +43,9 @@ while IFS=";" read -r username groups; do
   fi
 
   # Assign user to additional groups
-  IFS=',' read -ra GROUP_ARRAY <<< "$groups"
-  for group in "${GROUP_ARRAY[@]}"; do
+  IFS=',' read -ra ADDR <<< "$groups"
+  for group in "${ADDR[@]}"; do
+    group=$(echo "$group" | xargs)  # Trim whitespace
     if ! getent group "$group" > /dev/null; then
       sudo groupadd "$group"
       echo "$(date): Group $group created" | sudo tee -a "$LOG_FILE"
